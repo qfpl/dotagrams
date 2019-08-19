@@ -1,0 +1,12 @@
+*~
+*#*
+*.swp
+
+.ghc.env*
+dist/
+dist-newstyle/
+cabal-dev/
+.cabal-sandbox/
+cabal.sandbox.config
+cabal.project.local
+
