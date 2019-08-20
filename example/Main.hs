@@ -34,13 +34,18 @@ outputs =
 main :: IO ()
 main =
   for_ outputs $ \(i,g) -> do
-    let fn = "example" <> show i <> ".dot"
-    let space = " "
-    dotFile fn g
+    let fndot = "example" <> show i <> ".dot"
+        fnpdf = "example" <> show i <> ".pdf"
+        space = " "
+    dotFile fndot g
     system $ intercalate " "
       [ "dot"
-      , fn
+      , fndot
       , "-Tpdf"
       , "-o"
-      , fn <> ".pdf"
+      , fnpdf
+      ]
+    system $ intercalate " "
+      [ "firefox"
+      , fnpdf
       ]
