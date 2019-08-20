@@ -1,41 +1,74 @@
+{-# language GeneralizedNewtypeDeriving #-}
+{-# language ScopedTypeVariables #-}
+
 module Data.Propagator.Diagram where
 
-import Control.Monad ()
-import Control.Monad.Trans.Reader (ReaderT (ReaderT, runReaderT), ask, reader)
+import Control.Monad (when)
+import Control.Monad.Fix (MonadFix)
+import Control.Monad.Reader.Class (MonadReader (ask))
+import Control.Monad.State.Class (MonadState, get, modify)
+import Control.Monad.Trans.Reader (ReaderT (runReaderT))
+import Control.Monad.Trans.State (StateT, evalStateT, execStateT)
+import Control.Monad.Trans (MonadTrans (lift))
 import Data.GraphViz.Attributes (Attribute, Labellable, Shape (Square), X11Color (Transparent), toLabel, shape, style, invis, bgColor)
 import Data.GraphViz.Attributes.Complete (Attribute (RankDir), RankDir (FromLeft))
 import Data.GraphViz.Types (GraphID (Str), printDotGraph)
-import Data.GraphViz.Types.Monadic (Dot, DotM, digraph, graphAttrs, node)
+import Data.GraphViz.Types.Monadic (Dot, DotM (DotM), digraph, graphAttrs, node)
 import Data.GraphViz.Types.Generalised (DotGraph)
 import Data.Text.Lazy
 import Data.Foldable (traverse_)
 import Numeric.Natural (Natural)
 
-type RevealM s a = ReaderT Natural (DotM s) a
+newtype RevealM' m a = RevealM { runRevealM :: StateT Slide (ReaderT Slide m) a }
+  deriving (Functor, Applicative, Monad, MonadReader Slide, MonadState Slide, MonadFix)
+
+instance MonadTrans RevealM' where
+  lift = RevealM . lift . lift
+
+type RevealM s = RevealM' (DotM s)
 type Reveal s = RevealM s ()
+type Slide = Natural
 
-runReveal :: RevealM s a -> Natural -> DotM s a
-runReveal r n = l2r *> runReaderT r n
-  where l2r = graphAttrs [RankDir FromLeft]
+runReveal :: forall s a . Bool -> RevealM s a -> [DotM s a]
+runReveal shouldL2R r =
+  let
+    l2r = graphAttrs [RankDir FromLeft]
+    rsa = runRevealM $ when shouldL2R (lift l2r) *> r
+    lastSlide :: Slide
+    lastSlide = case flip runReaderT 0 $ execStateT rsa 0 of
+      DotM (n,_) -> n
+    drawSlide :: Natural -> DotM s a
+    drawSlide n = flip runReaderT n $ evalStateT rsa 0
+  in
+    drawSlide <$> [0..lastSlide]
 
-always :: DotM s a -> RevealM s a
-always = ReaderT . const
-always' :: ([Attribute] -> DotM s a) -> RevealM s a
-always' ad = always $ ad []
+always :: ([Attribute] -> DotM s a) -> RevealM s a
+always ad = lift $ ad []
+
 propagator :: Labellable a => s -> a -> [Attribute] -> Dot s
 propagator name val extras = node name $ toLabel val : shape Square : extras
+
 cell :: Labellable a => s -> a -> [Attribute] -> Dot s
 cell name val extras = node name $ toLabel val : extras
 
-on :: Natural -> ([Attribute] -> DotM s a) -> RevealM s a
-on trigger f =
-  ReaderT $ \n ->
-    if n >= trigger
-    then f []
-    else f [style invis]
+slide :: RevealM s Slide
+slide = do
+  modify (+1)
+  get
 
-observe :: (Natural -> [Attribute] -> RevealM s a) -> [Attribute] -> RevealM s a
-observe nad a = ask >>= flip nad a
+currentSlide :: RevealM s Slide
+currentSlide = ask
+
+switch :: Slide -> a -> a -> RevealM s a
+switch trigger a b = do
+  cs <- currentSlide
+  pure $ if cs >= trigger then a else b
+
+switchVis :: Slide -> RevealM s [Attribute]
+switchVis trigger = switch trigger [] [style invis]
+
+reveal :: Slide -> ([Attribute] -> DotM s a) -> RevealM s a
+reveal s f = switchVis s >>= lift . f
 
 --------------------
 -- TODO move?

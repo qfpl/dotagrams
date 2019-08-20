@@ -1,35 +1,50 @@
+{-# language RecursiveDo #-}
+
 module Main where
 
-import Control.Monad.Trans.Reader (ReaderT (ReaderT, runReaderT))
+import Data.Functor (void)
 import Data.List (intercalate)
 import Data.Propagator.Diagram
-import Data.GraphViz.Attributes (style, invis)
 import Data.GraphViz.Types.Monadic
 import Data.GraphViz.Types.Generalised (DotGraph)
 import Data.Foldable (for_)
-import Data.Traversable (for)
 import Numeric.Natural (Natural)
 import System.Process (system)
 
 diagram :: Reveal String
-diagram = do
-  always' $ cell "inL" ""
-  always' $ cell "inR" ""
-  ReaderT $ \n ->
-    propagator "add"
-      (if n >= 2 then "+" else "")
-      (if n >= 1
-        then []
-        else [style invis])
+diagram = mdo
 
-  on 1 $ edge "inL" "add"
-  on 1 $ edge "inR" "add"
+  lL <- switch sThree "3" ""
+  lR <- switch sSeven "7" ""
+
+  always $ cell "inL" lL
+  always $ cell "inR" lR
+
+  sProp <- slide
+  lProp <- switch sAddition "+" ""
+  reveal sProp $ propagator "add" lProp
+
+  sEdges <- slide
+  reveal sEdges $ edge "inL" "add"
+  reveal sEdges $ edge "inR" "add"
+
+  sOutput <- slide
+  lOut <- switch sTen "10" ""
+  reveal sOutput $ cell "out" lOut
+  reveal sOutput $ edge "add" "out"
+
+  sAddition <- slide
+  sThree <- slide
+  sSeven <- slide
+  sTen <- slide
+  pure ()
 
 outputs :: [(Natural,DotGraph String)]
 outputs =
-  map
-    (\n -> (n, digraph_ (show n) $ runReveal diagram n))
-    [0,1,2]
+  imap (\i a -> (i, digraph_ (show i) a)) $ runReveal True diagram
+  where
+    imap :: (Natural -> a -> b) -> [a] -> [b]
+    imap f = fmap (uncurry f) . zip [0..]
 
 main :: IO ()
 main =
@@ -38,14 +53,14 @@ main =
         fnpdf = "example" <> show i <> ".pdf"
         space = " "
     dotFile fndot g
-    system $ intercalate " "
+    void $ system $ intercalate space
       [ "dot"
       , fndot
       , "-Tpdf"
       , "-o"
       , fnpdf
       ]
-    system $ intercalate " "
+    void $ system $ intercalate space
       [ "firefox"
       , fnpdf
       ]
