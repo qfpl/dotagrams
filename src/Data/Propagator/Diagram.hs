@@ -41,6 +41,9 @@ runReveal shouldL2R r =
   in
     drawSlide <$> [0..lastSlide]
 
+--------------------
+-- Combinators
+--------------------
 always :: ([Attribute] -> DotM s a) -> RevealM s a
 always ad = lift $ ad []
 
@@ -65,6 +68,9 @@ switch trigger a b = do
 
 switchVis :: Slide -> RevealM s [Attribute]
 switchVis trigger = switch trigger [style invis] []
+
+switchLabel :: Slide -> String -> RevealM s String
+switchLabel trigger label = switch trigger (' ' <$ label) label
 
 reveal :: Slide -> ([Attribute] -> DotM s a) -> RevealM s a
 reveal s f = switchVis s >>= lift . f
