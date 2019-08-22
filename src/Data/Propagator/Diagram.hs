@@ -15,11 +15,10 @@ import Data.GraphViz.Attributes.Complete (Attribute (RankDir), RankDir (FromLeft
 import Data.GraphViz.Types (GraphID (Str), printDotGraph)
 import Data.GraphViz.Types.Monadic (Dot, DotM (DotM), digraph, graphAttrs, node)
 import Data.GraphViz.Types.Generalised (DotGraph)
-import Data.Text.Lazy
-import Data.Foldable (traverse_)
+import Data.Text.Lazy (pack, unpack)
 import Numeric.Natural (Natural)
 
-newtype RevealM' m a = RevealM { runRevealM :: StateT Slide (ReaderT Slide m) a }
+newtype RevealM' m a = RevealM { runRevealM :: ReaderT Slide (StateT Slide m) a }
   deriving (Functor, Applicative, Monad, MonadReader Slide, MonadState Slide, MonadFix)
 
 instance MonadTrans RevealM' where
@@ -35,10 +34,10 @@ runReveal shouldL2R r =
     l2r = graphAttrs [RankDir FromLeft]
     rsa = runRevealM $ when shouldL2R (lift l2r) *> r
     lastSlide :: Slide
-    lastSlide = case flip runReaderT 0 $ execStateT rsa 0 of
+    lastSlide = case flip execStateT 0 $ runReaderT rsa 0 of
       DotM (n,_) -> n
     drawSlide :: Natural -> DotM s a
-    drawSlide n = flip runReaderT n $ evalStateT rsa 0
+    drawSlide n = flip evalStateT 0 $ runReaderT rsa n
   in
     drawSlide <$> [0..lastSlide]
 
@@ -62,10 +61,10 @@ currentSlide = ask
 switch :: Slide -> a -> a -> RevealM s a
 switch trigger a b = do
   cs <- currentSlide
-  pure $ if cs >= trigger then a else b
+  pure $ if cs < trigger then a else b
 
 switchVis :: Slide -> RevealM s [Attribute]
-switchVis trigger = switch trigger [] [style invis]
+switchVis trigger = switch trigger [style invis] []
 
 reveal :: Slide -> ([Attribute] -> DotM s a) -> RevealM s a
 reveal s f = switchVis s >>= lift . f

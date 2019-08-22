@@ -14,14 +14,14 @@ import System.Process (system)
 diagram :: Reveal String
 diagram = mdo
 
-  lL <- switch sThree "3" ""
-  lR <- switch sSeven "7" ""
+  lL <- switch sThree "" "3"
+  lR <- switch sSeven "" "7"
 
   always $ cell "inL" lL
   always $ cell "inR" lR
 
   sProp <- slide
-  lProp <- switch sAddition "+" ""
+  lProp <- switch sAddition "" "+"
   reveal sProp $ propagator "add" lProp
 
   sEdges <- slide
@@ -29,7 +29,7 @@ diagram = mdo
   reveal sEdges $ edge "inR" "add"
 
   sOutput <- slide
-  lOut <- switch sTen "10" ""
+  lOut <- switch sTen "" "10"
   reveal sOutput $ cell "out" lOut
   reveal sOutput $ edge "add" "out"
 
