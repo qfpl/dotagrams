@@ -12,7 +12,7 @@ import Control.Monad.Trans.State (StateT, evalStateT, execStateT)
 import Control.Monad.Trans (MonadTrans (lift))
 import Data.Bifunctor (Bifunctor (second))
 import Data.GraphViz.Attributes (Attribute, Labellable, Shape (Square), X11Color (Transparent), toLabel, shape, style, invis, bgColor)
-import Data.GraphViz.Attributes.Complete (Attribute (RankDir), RankDir (FromLeft))
+import Data.GraphViz.Attributes.Complete (Attribute (RankDir, Margin), DPoint (DVal), RankDir (FromLeft))
 import Data.GraphViz.Types (GraphID (Str), printDotGraph)
 import Data.GraphViz.Types.Monadic (Dot, DotM (DotM), digraph, graphAttrs, node)
 import Data.GraphViz.Types.Generalised (DotGraph)
@@ -34,7 +34,7 @@ type Slide = Natural
 runReveal :: forall s a . Bool -> RevealM s a -> [DotM s a]
 runReveal shouldL2R r =
   let
-    l2r = graphAttrs [RankDir FromLeft]
+    l2r = graphAttrs [RankDir FromLeft, Margin (DVal 0)]
     rsa = runRevealM $ when shouldL2R (lift l2r) *> r
     lastSlide :: Slide
     lastSlide = case flip execStateT 0 $ runReaderT rsa 0 of
