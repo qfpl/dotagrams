@@ -26,6 +26,8 @@ library
     containers,
     graphviz >= 2999.19 && < 2999.21,
     mtl,
+    mmorph,
+    profunctors,
     text,
     transformers
   hs-source-dirs:

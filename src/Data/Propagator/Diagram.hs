@@ -4,20 +4,22 @@
 module Data.Propagator.Diagram where
 
 import Control.Monad (when)
+import Control.Monad.Morph (MFunctor (hoist))
 import Control.Monad.Fix (MonadFix)
 import Control.Monad.Reader.Class (MonadReader (ask))
 import Control.Monad.State.Class (MonadState, get, modify)
-import Control.Monad.Trans.Reader (ReaderT (runReaderT))
+import Control.Monad.Trans.Reader (ReaderT (ReaderT, runReaderT))
 import Control.Monad.Trans.State (StateT, evalStateT, execStateT)
 import Control.Monad.Trans (MonadTrans (lift))
 import Data.Bifunctor (Bifunctor (second))
 import Data.GraphViz.Attributes (Attribute, Labellable, Shape (Square), X11Color (Transparent), toLabel, shape, style, invis, bgColor)
-import Data.GraphViz.Attributes.Complete (Attribute (RankDir, Margin), DPoint (DVal), RankDir (FromLeft))
+import Data.GraphViz.Attributes.Complete (Attribute (RankDir, Margin), DPoint (DVal), RankDir (FromLeft, FromTop), Number (Int))
 import Data.GraphViz.Types (GraphID (Str), printDotGraph)
-import Data.GraphViz.Types.Monadic (Dot, DotM (DotM), digraph, graphAttrs, node)
+import Data.GraphViz.Types.Monadic (Dot, DotM (DotM), GraphID (Num), cluster', digraph, graphAttrs, node)
 import Data.GraphViz.Types.Generalised (DotGraph)
 import Data.List (foldl')
 import Data.List.NonEmpty (NonEmpty, sortWith)
+import Data.Profunctor (Profunctor (lmap))
 import Data.Text.Lazy (pack, unpack)
 import Numeric.Natural (Natural)
 
@@ -26,6 +28,9 @@ newtype RevealM' m a = RevealM { runRevealM :: ReaderT Slide (StateT Slide m) a 
 
 instance MonadTrans RevealM' where
   lift = RevealM . lift . lift
+
+instance MFunctor RevealM' where
+  hoist f (RevealM r) = RevealM $ hoist (hoist f) r
 
 type RevealM s = RevealM' (DotM s)
 type Reveal s = RevealM s ()
@@ -49,6 +54,15 @@ runReveal shouldL2R r =
 --------------------
 always :: ([Attribute] -> DotM s a) -> RevealM s a
 always ad = lift $ ad []
+
+never :: ([Attribute] -> DotM s a) -> RevealM s a
+never ad = lift $ ad [style invis]
+
+reveal :: Slide -> ([Attribute] -> DotM s a) -> RevealM s a
+reveal s f = switchVis s >>= lift . f
+
+attrs :: [Attribute] -> ([Attribute] -> DotM s a) -> ([Attribute] -> DotM s a)
+attrs as ad = lmap (as<>) ad
 
 propagator :: Labellable a => s -> a -> [Attribute] -> Dot s
 propagator name val extras = node name $ toLabel val : shape Square : extras
@@ -97,8 +111,11 @@ switchLabels events = do
     go earlier (trigger,now) = if cs < trigger then earlier else now
   pure $ foldl' go spaces events'
 
-reveal :: Slide -> ([Attribute] -> DotM s a) -> RevealM s a
-reveal s f = switchVis s >>= lift . f
+bunch :: Int -> RevealM s a -> RevealM s ()
+bunch ident rev =
+  hoist
+    (cluster' (Num (Int ident)))
+    (lift (graphAttrs [style invis, RankDir FromTop]) <* rev)
 
 --------------------
 -- TODO move?
